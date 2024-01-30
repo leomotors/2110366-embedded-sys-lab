@@ -1,27 +1,29 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2024 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : Main program body
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2024 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,6 +44,7 @@
 /* Private variables ---------------------------------------------------------*/
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
+TIM_HandleTypeDef htim10;
 
 UART_HandleTypeDef huart2;
 
@@ -55,19 +58,37 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM4_Init(void);
+static void MX_TIM10_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-  if (htim == &htim3) {
-	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
-  }
-}
+int internalLEDEdgeCount = 0;
+int externalLEDCount = 0;
+int currentColor = 30;
 
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+	if (htim == &htim3) {
+		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
+		internalLEDEdgeCount += 1;
+	} else if (htim == &htim4) {
+		externalLEDCount += 1;
+	} else if (htim == &htim10) {
+		int currentTime = HAL_GetTick();
+		char *message = (char*) malloc(sizeof(char) * 100);
+		sprintf(message, "\e[0;%dmTime: %d, Internal LED: %d, External LED: %d\e[0m\r\n",
+				currentColor, currentTime, internalLEDEdgeCount / 2, externalLEDCount);
+		HAL_UART_Transmit(&huart2, message, strlen(message), 100);
+		free(message);
+
+		currentColor++;
+		if (currentColor > 37) {
+			currentColor = 30;
+		}
+	}
+}
 /* USER CODE END 0 */
 
 /**
@@ -101,19 +122,21 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM3_Init();
   MX_TIM4_Init();
+  MX_TIM10_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
-  HAL_TIM_Base_Start_IT(&htim3);
+	HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
+	HAL_TIM_Base_Start_IT(&htim3);
+	HAL_TIM_Base_Start_IT(&htim4);
+	HAL_TIM_Base_Start_IT(&htim10);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+	while (1) {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
+	}
   /* USER CODE END 3 */
 }
 
@@ -176,7 +199,7 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 6999;
+  htim3.Init.Prescaler = 7999;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim3.Init.Period = 249;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -222,7 +245,7 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 0;
+  htim4.Init.Prescaler = 399;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim4.Init.Period = 9809;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -258,6 +281,37 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 2 */
   HAL_TIM_MspPostInit(&htim4);
+
+}
+
+/**
+  * @brief TIM10 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM10_Init(void)
+{
+
+  /* USER CODE BEGIN TIM10_Init 0 */
+
+  /* USER CODE END TIM10_Init 0 */
+
+  /* USER CODE BEGIN TIM10_Init 1 */
+
+  /* USER CODE END TIM10_Init 1 */
+  htim10.Instance = TIM10;
+  htim10.Init.Prescaler = 799;
+  htim10.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim10.Init.Period = 9998;
+  htim10.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim10.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim10) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM10_Init 2 */
+
+  /* USER CODE END TIM10_Init 2 */
 
 }
 
@@ -342,11 +396,10 @@ static void MX_GPIO_Init(void)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
-  {
-  }
+	/* User can add his own implementation to report the HAL error return state */
+	__disable_irq();
+	while (1) {
+	}
   /* USER CODE END Error_Handler_Debug */
 }
 
