@@ -1,0 +1,4 @@
+# This will flood my overall language stats
+*.h linguist-vendored=true
+*.c linguist-vendored=true
+*.s linguist-vendored=true
